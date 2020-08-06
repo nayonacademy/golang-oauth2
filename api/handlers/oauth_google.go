@@ -30,13 +30,29 @@ func init() {
 	}
 }
 
+func (server *Server) Home(w http.ResponseWriter, r *http.Request) {
+	var innerHtml = `
+	<html>
+		<body>
+			<a href="/auth/google/login" style="text-transform:none">
+                            <div class="left">
+                                <img width="30px" alt="Google &quot;G&quot; Logo"
+                                     src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/512px-Google_%22G%22_Logo.svg.png"/>
+                            </div>
+                            Login with Google
+                        </a>
+		</body>
+	</html>
+	`
+	fmt.Fprintf(w, innerHtml)
+}
 
-func handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	url := googleOauthConfig.AuthCodeURL(oauthStateString)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
+func (server *Server) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	content, err := getUserInfo(r.FormValue("state"), r.FormValue("code"))
 	if err != nil {
 		fmt.Println(err.Error())
