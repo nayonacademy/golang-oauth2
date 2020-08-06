@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
-
 	"github.com/nayonacademy/golang-oauth2/api/models"
-	_ "github.com/nayonacademy/golang-oauth2/api/models"
 	"log"
 	"net/http"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"

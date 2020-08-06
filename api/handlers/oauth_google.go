@@ -1,19 +1,21 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/jinzhu/gorm"
+	"github.com/joho/godotenv"
+	"github.com/nayonacademy/golang-oauth2/api/models"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"github.com/joho/godotenv"
 )
 
 var (
 	googleOauthConfig *oauth2.Config
-	// TODO: randomize it
 	oauthStateString = "pseudo-random"
 )
 
@@ -34,13 +36,7 @@ func (server *Server) Home(w http.ResponseWriter, r *http.Request) {
 	var innerHtml = `
 	<html>
 		<body>
-			<a href="/auth/google/login" style="text-transform:none">
-                            <div class="left">
-                                <img width="30px" alt="Google &quot;G&quot; Logo"
-                                     src="https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Google_%22G%22_Logo.svg/512px-Google_%22G%22_Logo.svg.png"/>
-                            </div>
-                            Login with Google
-                        </a>
+			<a href="/auth/google/login" >Login with Google</a>
 		</body>
 	</html>
 	`
@@ -53,36 +49,52 @@ func (server *Server) handleGoogleLogin(w http.ResponseWriter, r *http.Request) 
 }
 
 func (server *Server) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
-	content, err := getUserInfo(r.FormValue("state"), r.FormValue("code"))
+	//content, err := getUserInfo(r.FormValue("state"), r.FormValue("code"))
+	state := r.FormValue("state")
+	code := r.FormValue("code")
+	if state != oauthStateString {
+		return
+	}
+	token, err := googleOauthConfig.Exchange(oauth2.NoContext, code)
+	if err != nil {
+		return
+	}
+	response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
+	if err != nil {
+		return
+	}
+	defer response.Body.Close()
+
+	var info models.UserData
+
+	contents, err := ioutil.ReadAll(response.Body)
+
+	json.Unmarshal(contents, &info)
+
 	if err != nil {
 		fmt.Println(err.Error())
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 		return
 	}
+	var user models.User
 
-	fmt.Fprintf(w, "Content: %s\n", content)
-}
-
-func getUserInfo(state string, code string) ([]byte, error) {
-	if state != oauthStateString {
-		return nil, fmt.Errorf("invalid oauth state")
+	if err := server.DB.First(&user, "token = ?", token.AccessToken).Error; gorm.IsRecordNotFoundError(err) {
+		// record not found
+		server.DB.Create(&models.User{
+			Token:    token.AccessToken,
+			Email:    info.Email,
+			Picture:  info.Picture,
+			UserID:   info.Id,
+		})
 	}
 
-	token, err := googleOauthConfig.Exchange(oauth2.NoContext, code)
-	if err != nil {
-		return nil, fmt.Errorf("code exchange failed: %s", err.Error())
+	testValue := server.DB.First(&user, "token = ?", token.AccessToken).Error
+	if testValue != nil{
+		fmt.Println("already")
+		fmt.Fprintf(w, "%s Already Registered", info.Email)
+	}else{
+		fmt.Println("new")
+		fmt.Fprintf(w, "Welcome %s , Congrasulation for New Registration.", info.Email)
 	}
 
-	response, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed getting user info: %s", err.Error())
-	}
-
-	defer response.Body.Close()
-	contents, err := ioutil.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed reading response body: %s", err.Error())
-	}
-
-	return contents, nil
 }
