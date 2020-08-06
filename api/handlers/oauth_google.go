@@ -32,17 +32,6 @@ func init() {
 	}
 }
 
-func (server *Server) Home(w http.ResponseWriter, r *http.Request) {
-	var innerHtml = `
-	<html>
-		<body>
-			<a href="/auth/google/login" >Login with Google</a>
-		</body>
-	</html>
-	`
-	fmt.Fprintf(w, innerHtml)
-}
-
 func (server *Server) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 	url := googleOauthConfig.AuthCodeURL(oauthStateString)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
@@ -78,7 +67,7 @@ func (server *Server) handleGoogleCallback(w http.ResponseWriter, r *http.Reques
 	}
 	var user models.User
 
-	if err := server.DB.First(&user, "token = ?", token.AccessToken).Error; gorm.IsRecordNotFoundError(err) {
+	if err := server.DB.First(&user, "user_id = ?", info.Id).Error; gorm.IsRecordNotFoundError(err) {
 		// record not found
 		server.DB.Create(&models.User{
 			Token:    token.AccessToken,
@@ -88,10 +77,11 @@ func (server *Server) handleGoogleCallback(w http.ResponseWriter, r *http.Reques
 		})
 	}
 
-	testValue := server.DB.First(&user, "token = ?", token.AccessToken).Error
+	testValue := server.DB.First(&user, "user_id = ?", info.Id).Error
 	if testValue != nil{
 		fmt.Println("already")
 		fmt.Fprintf(w, "%s Already Registered", info.Email)
+		server.DB.Model(&user).Where("user_id = ?", info.Id).Update("token", token.AccessToken)
 	}else{
 		fmt.Println("new")
 		fmt.Fprintf(w, "Welcome %s , Congrasulation for New Registration.", info.Email)
